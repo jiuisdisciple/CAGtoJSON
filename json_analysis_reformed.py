@@ -35,9 +35,9 @@ for entry in coronary_angiography_data:
 
 # Define a function to determine the type based on lesion characteristics
 def determine_type(lesion_characteristics):
-    type_c_criteria = {"diffuse", "total occlusion"}
+    type_c_criteria = {"diffuse", "total occlusion", "CTO"}
     type_b2_criteria = {"subtotal occlusion", "ISR"}
-    type_b_criteria = {"tubular", "eccentric", "moderate calcification", "severe calcification", "os", "bifurcation", "irregular"}
+    type_b_criteria = {"tubular", "eccentric", "calcification", "moderate calcification", "severe calcification", "os", "bifurcation", "irregular"}
 
 
     if type_c_criteria & set(lesion_characteristics):
@@ -115,7 +115,7 @@ def determine_anatomical_dx(vessel_disease):
 def extract_previous_stent(entry):
     if not entry.get("cag"):
         return [["N/A"]]
-    previous_stents = entry.get("coronary_angiography", {}).get("previous_stents", [])
+    previous_stents = entry.get("previous_stents_rearrange", [])
     return [[stent.get("device", "N/A"), stent.get("diameter_mm", "N/A"), stent.get("length_mm", "N/A"), stent.get("segment_code", "N/A")] for stent in previous_stents] or [["N/A"]]
 
 # Define function to determine three_vessel_PCI and three_or_more_lesions_treated
