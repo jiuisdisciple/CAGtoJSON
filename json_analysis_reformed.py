@@ -190,15 +190,71 @@ cto_pci = []
 
 
 for entry in coronary_angiography_data:
-    rearrange_complexity = entry.get("rearrange_complexity", {})
-    segment_codes_of_previous_stents.append(rearrange_complexity.get("segment_codes_of_previous_stents", []))
-    lengths_of_current_stents.append(rearrange_complexity.get("lengths_of_current_stents", []))
-    segment_codes_of_current_stents.append(rearrange_complexity.get("segment_codes_of_current_stents", []))
-    segment_codes_of_deb_dcb.append(rearrange_complexity.get("segment_codes_of_deb_dcb", []))
-    segment_codes_of_thrombus_aspiration.append(rearrange_complexity.get("segment_codes_of_thrombus_aspiration", []))
-    segment_codes_of_kissing.append(rearrange_complexity.get("segment_codes_of_kissing", []))
+    # Extract values or assign empty lists if missing
+    previous_stents = entry.get("previous_stents_rearrange", [])
+    current_stents = entry.get("current_stents_rearrange", [])
+    pci_details = entry.get("pci_details", [])
+    coronary_angiography = entry.get("coronary_angiography", {})
+
+    # Extract segment codes and lengths from the new format
+    previous_stent_codes = [stent.get("segment_code", []) for stent in previous_stents]
+    current_stent_codes = [stent.get("segment_code", []) for stent in current_stents]
+
+    segment_codes_of_previous_stents.append(previous_stent_codes)
+    lengths_of_current_stents.append([stent.get("length_mm", 0) for stent in current_stents])
+    segment_codes_of_current_stents.append(current_stent_codes)
+
+    # Extract DEB/DCB and thrombus aspiration segment codes from both coronary_angiography and pci_details
+    deb_dcb_segments = [
+        balloon.get("segment_code", [])
+        for balloon in coronary_angiography.get("DEB_DCB", [])
+    ]
+    deb_dcb_segments += [
+        balloon.get("segment_code", [])
+        for pci in pci_details
+        for balloon in pci.get("DEB_DCB", [])
+    ]
+    segment_codes_of_deb_dcb.append(deb_dcb_segments)
+
+    thrombus_aspiration_segments = [
+        thrombus.get("segment_code", [])
+        for thrombus in coronary_angiography.get("thrombus_aspiration", [])
+    ]
+    thrombus_aspiration_segments += [
+        thrombus.get("segment_code", [])
+        for pci in pci_details
+        for thrombus in pci.get("thrombus_aspiration", [])
+    ]
+    segment_codes_of_thrombus_aspiration.append(thrombus_aspiration_segments)
+
+    # Assuming kissing segment codes are missing for now
+    segment_codes_of_kissing.append([])
+
     cags.append(bool(entry.get("coronary_angiography")))
     pcis.append(bool(entry.get("pci_details")))
+
+# Flatten, remove duplicates, and sort the lists
+segment_codes_of_previous_stents = [
+    sorted(set(flatten(codes))) if isinstance(codes, list) else []
+    for codes in segment_codes_of_previous_stents
+]
+
+segment_codes_of_current_stents = [
+    sorted(set(flatten(codes))) if isinstance(codes, list) else []
+    for codes in segment_codes_of_current_stents
+]
+
+segment_codes_of_deb_dcb = [
+    sorted(set(flatten(codes))) if isinstance(codes, list) else []
+    for codes in segment_codes_of_deb_dcb
+]
+
+segment_codes_of_thrombus_aspiration = [
+    sorted(set(flatten(codes))) if isinstance(codes, list) else []
+    for codes in segment_codes_of_thrombus_aspiration
+]
+
+
 
 for entry in coronary_angiography_data:
     pci_details = entry.get("pci_details", [])
@@ -206,12 +262,22 @@ for entry in coronary_angiography_data:
     cto_pci.append(cto_detected)
 
 previous_stent_array = [extract_previous_stent(entry) for entry in coronary_angiography_data]
-stent_array = [extract_stent(entry) for entry in coronary_angiography_data]
+current_stent_array = [extract_current_stent(entry) for entry in coronary_angiography_data]
 
 vessel_disease = [categorize_vessel_disease([code[0] for code in segment_codes], stents) for segment_codes, stents in zip(all_segment_codes_with_types, segment_codes_of_previous_stents)]
 lesion_total_num = [len(segments) for segments in all_segment_codes_with_types]
 lesion_B2C_num = [sum(1 for _, type_ in segments if type_ in {"B2", "C"}) for segments in all_segment_codes_with_types]
 anatomical_dx_json = [determine_anatomical_dx(categorize_vessel_disease([code[0] for code in segment_codes], stents)) for segment_codes, stents in zip(all_segment_codes_with_types, segment_codes_of_previous_stents)]
+
+# Sort vessel_disease
+def sort_vessel_disease(vessels):
+    order = {'LM': 0, 'LAD': 1, 'LCx': 2, 'RCA': 3}
+    return sorted(vessels, key=lambda x: order.get(x, len(order)))
+
+vessel_disease = [
+    sort_vessel_disease(categorize_vessel_disease([code[0] for code in segment_codes], stents))
+    for segment_codes, stents in zip(all_segment_codes_with_types, segment_codes_of_previous_stents)
+]
 
 
 df = pd.DataFrame({
